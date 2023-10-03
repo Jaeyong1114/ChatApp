@@ -4,10 +4,10 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.example.chatapp.Key.Companion.DB_CHATS
 import com.example.chatapp.Key.Companion.DB_CHAT_ROOMS
 import com.example.chatapp.Key.Companion.DB_USERS
-import com.example.chatapp.Key.Companion.FCM_SERVER_KEY
 import com.example.chatapp.R
 import com.example.chatapp.databinding.ActivityChatBinding
 import com.example.chatapp.databinding.ActivityLoginBinding
@@ -31,12 +31,14 @@ import java.io.IOException
 class ChatActivity : AppCompatActivity() {
     private lateinit var binding: ActivityChatBinding
     private lateinit var chatAdapter: ChatAdapter
+    private lateinit var linearLayoutManager: LinearLayoutManager
+
 
     private var chatRoomId: String = ""
     private var otherUserId: String = ""
-    private var otherUserFcmToken : String = ""
+    private var otherUserFcmToken: String = ""
     private var myUserId: String = ""
-    private var myUserName : String = ""
+    private var myUserName: String = ""
     private var isInit = false
 
     private val chatItemList = mutableListOf<ChatItem>()
@@ -49,14 +51,17 @@ class ChatActivity : AppCompatActivity() {
         binding = ActivityChatBinding.inflate(layoutInflater)
         setContentView(binding.root)
         chatAdapter = ChatAdapter()
-        chatRoomId = intent.getStringExtra( EXTRA_CHAT_ROOM_ID) ?: return
+        linearLayoutManager=LinearLayoutManager(applicationContext)
+
+        chatRoomId = intent.getStringExtra(EXTRA_CHAT_ROOM_ID) ?: return
         otherUserId = intent.getStringExtra(EXTRA_OTHER_USER_ID) ?: return
         myUserId = Firebase.auth.currentUser?.uid ?: ""
+
 
         Firebase.database.reference.child(DB_USERS).child(myUserId).get()
             .addOnSuccessListener {
                 val myUserItem = it.getValue(UserItem::class.java)
-                myUserName = myUserItem?.userName?:""
+                myUserName = myUserItem?.userName ?: ""
 
                 getOtherUserData()
             }
@@ -65,21 +70,30 @@ class ChatActivity : AppCompatActivity() {
 
 
         binding.chatRecyclerView.apply {
-            layoutManager = LinearLayoutManager(context)
+            layoutManager = linearLayoutManager
             adapter = chatAdapter
         }
+
+        chatAdapter.registerAdapterDataObserver(object: RecyclerView.AdapterDataObserver(){
+            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
+                super.onItemRangeInserted(positionStart, itemCount)
+                linearLayoutManager.smoothScrollToPosition(binding.chatRecyclerView, null, chatAdapter.itemCount)
+
+
+            }
+        })
 
 
 
         binding.sendButton.setOnClickListener {
             val message = binding.messageEditText.text.toString()
 
-            if(!isInit){
+            if (!isInit) {
                 return@setOnClickListener
             }
 
-            if(message.isEmpty()){
-                Toast.makeText(applicationContext,"빈 메세지를 전송할 수 없습니다", Toast.LENGTH_SHORT).show()
+            if (message.isEmpty()) {
+                Toast.makeText(applicationContext, "빈 메세지를 전송할 수 없습니다", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
@@ -89,8 +103,8 @@ class ChatActivity : AppCompatActivity() {
             )
 
             Firebase.database.reference.child(DB_CHATS).child(chatRoomId).push()
-                .apply{
-                    newChatItem.chatId=key
+                .apply {
+                    newChatItem.chatId = key
                     setValue(newChatItem)
                 }
 
@@ -101,24 +115,26 @@ class ChatActivity : AppCompatActivity() {
                 "${DB_CHAT_ROOMS}/$otherUserId/$myUserId/otherUserId" to myUserId,
                 "${DB_CHAT_ROOMS}/$otherUserId/$myUserId/otherUserName" to myUserName,
 
-            )
+                )
             Firebase.database.reference.updateChildren(updates)
 
             val client = OkHttpClient()
 
             val root = JSONObject()
             val notification = JSONObject()
-            notification.put("title",getString(R.string.app_name))
-            notification.put("body",message)
+            notification.put("title", getString(R.string.app_name))
+            notification.put("body", message)
 
-            root.put("to",otherUserFcmToken)
+            root.put("to", otherUserFcmToken)
             root.put("priority", "high")
-            root.put("notification",notification)
+            root.put("notification", notification)
 
-            val requestBody =root.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-            val request = Request.Builder().post(requestBody).url("https://fcm.googleapis.com/fcm/send")
-                .header("Authorization","key=$FCM_SERVER_KEY").build()
-            client.newCall(request).enqueue(object : Callback{
+            val requestBody =
+                root.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request =
+                Request.Builder().post(requestBody).url("https://fcm.googleapis.com/fcm/send")
+                    .header("Authorization", "key=${getString(R.string.fcm_server_key)}").build()
+            client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
 
                 }
@@ -133,32 +149,27 @@ class ChatActivity : AppCompatActivity() {
         }
 
 
-
-
     }
 
-    private fun getOtherUserData(){
+    private fun getOtherUserData() {
         Firebase.database.reference.child(DB_USERS).child(otherUserId).get()
             .addOnSuccessListener {
                 val otherUserItem = it.getValue(UserItem::class.java)
                 otherUserFcmToken = otherUserItem?.fcmToken.orEmpty()
                 chatAdapter.otherUserItem = otherUserItem
 
-                isInit= true
+                isInit = true
                 getChatData()
 
             }
     }
 
-    private fun getChatData(){
+    private fun getChatData() {
         Firebase.database.reference.child(DB_CHATS).child(chatRoomId).addChildEventListener(
             object : ChildEventListener {
                 override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
                     val chatItem = snapshot.getValue(ChatItem::class.java)
                     chatItem ?: return
-
-
-
                     chatItemList.add(chatItem)
                     chatAdapter.submitList(chatItemList.toMutableList()) //새로운 리스트로 바꿔줌
                 }
@@ -174,7 +185,7 @@ class ChatActivity : AppCompatActivity() {
         )
     }
 
-    companion object{
+    companion object {
         const val EXTRA_CHAT_ROOM_ID = "CHAT_ROOM_ID"
         const val EXTRA_OTHER_USER_ID = "OTHER_USER_ID"
     }
