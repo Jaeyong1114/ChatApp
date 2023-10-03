@@ -60,8 +60,10 @@ class ChatActivity : AppCompatActivity() {
                     val chatItem = snapshot.getValue(ChatItem::class.java)
                     chatItem ?: return
 
+
+
                     chatItemList.add(chatItem)
-                    chatAdapter.submitList(chatItemList)
+                    chatAdapter.submitList(chatItemList.toMutableList()) //새로운 리스트로 바꿔줌
                 }
 
                 override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {}
