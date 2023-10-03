@@ -1,8 +1,8 @@
 package com.example.chatapp.userlist
 
 data class UserItem(
-    val userId : String,
-    val username :String,
-    val description: String,
+    val userId : String? = null,
+    val userName: String? = null,
+    val description: String? = null,
 
 )
