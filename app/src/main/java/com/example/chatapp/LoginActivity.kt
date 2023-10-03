@@ -11,6 +11,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.database.ktx.database
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.messaging.ktx.messaging
 
 class LoginActivity : AppCompatActivity() {
     private lateinit var binding : ActivityLoginBinding
@@ -56,16 +57,23 @@ class LoginActivity : AppCompatActivity() {
                     if(task.isSuccessful && currentUser != null){
                         val userId = currentUser.uid
 
-                        val user = mutableMapOf<String, Any>()
-                        user["userId"] = userId
-                        user["userName"] = email
+                        Firebase.messaging.token.addOnCompleteListener{
+                            val token = it.result
+                            val user = mutableMapOf<String, Any>()
+                            user["userId"] = userId
+                            user["userName"] = email
+                            user["fcmToken"] = token
+
+                            Firebase.database.reference.child(DB_USERS).child(userId).updateChildren(user)
+
+                            val intent = Intent(this,MainActivity::class.java)
+                            startActivity(intent)
+                            finish()
+                        }
 
 
-                        Firebase.database.reference.child(DB_USERS).child(userId).updateChildren(user)
 
-                        val intent = Intent(this,MainActivity::class.java)
-                        startActivity(intent)
-                        finish()
+
 
                     }else {
                         Log.e("LoginActivity",task.exception.toString())
